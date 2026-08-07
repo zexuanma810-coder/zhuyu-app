@@ -1,0 +1,19 @@
+{
+  "name": "zhuyu-app",
+  "version": "1.0.0",
+  "description": "竹语 - 笛箫练习 App（Capacitor 安卓原生封装）",
+  "private": true,
+  "scripts": {
+    "build": "npm run copy",
+    "copy": "cp -r ../app/. www/ && npx cap sync",
+    "sync": "npx cap sync",
+    "android": "npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/core": "^6.1.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  }
+}

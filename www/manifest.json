@@ -1,0 +1,19 @@
+{
+  "name": "竹语 · 笛箫练习",
+  "short_name": "竹语",
+  "description": "存谱子、存伴奏、专项练习的笛箫练习 App",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4F1E9",
+  "theme_color": "#4E7C59",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
