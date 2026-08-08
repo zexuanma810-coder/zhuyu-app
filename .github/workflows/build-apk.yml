@@ -27,9 +27,12 @@ jobs:
       - name: 准备 Android SDK（自动接受许可）
         uses: android-actions/setup-android@v3
 
-      - name: 安装网页依赖并同步到原生工程
+      - name: 安装网页依赖并生成/同步原生工程
         run: |
-          npm ci
+          npm install
+          # 仓库里如果没有 android/ 原生工程（例如通过网页上传的精简仓库），
+          # 由云端自动创建；已有则直接同步 www/ 内容。
+          if [ ! -d "android" ]; then npx cap add android; fi
           npx cap sync android
 
       - name: 编译 Debug APK
