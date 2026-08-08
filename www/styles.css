@@ -145,8 +145,9 @@ body{
 .player .label{font-size:12px;color:var(--sub);}
 .tag{background:var(--light);border-radius:10px;padding:4px 10px;font-size:11px;color:var(--green);font-weight:400;}
 .wave{width:100%;height:40px;}
-.progress{width:100%;height:4px;border-radius:2px;background:var(--light);position:relative;cursor:pointer;}
-.progress .fill{position:absolute;left:0;top:0;height:4px;border-radius:2px;background:var(--green);}
+.progress{width:100%;height:4px;border-radius:2px;background:var(--light);position:relative;cursor:pointer;touch-action:none;}
+.progress .fill{position:absolute;left:0;top:0;height:4px;border-radius:2px;background:var(--green);pointer-events:none;}
+.progress:active .fill,.progress.dragging .fill{background:var(--green-deep);}
 .timerow{width:100%;display:flex;justify-content:space-between;font-size:12px;color:var(--sub);}
 .controls{display:flex;align-items:center;gap:32px;}
 .track-row{display:flex;align-items:center;justify-content:space-between;padding:12px;border-radius:16px;background:#fff;cursor:pointer;gap:12px;}
@@ -227,6 +228,12 @@ body{
 .toolbar .tbtn{width:40px;height:40px;border-radius:20px;background:var(--light);display:flex;align-items:center;justify-content:center;cursor:pointer;}
 .toolbar .tbtn.on{background:var(--green);}
 .start-practice{display:inline-flex;align-items:center;gap:6px;background:var(--green);color:#fff;font-weight:700;font-size:15px;padding:12px 16px;border-radius:24px;cursor:pointer;border:none;font-family:var(--font);}
+
+/* detail page mini player */
+.detail-player{flex:0 0 auto;background:#fff;padding:10px 20px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--border);}
+.detail-player .progress{margin-bottom:8px;height:5px;border-radius:3px;}
+.detail-player .progress .fill{height:5px;border-radius:3px;}
+.detail-player .timerow{font-size:11px;}
 
 .back{width:40px;height:40px;border-radius:20px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:var(--shadow-sm);}
 .fav{width:40px;height:40px;border-radius:20px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:var(--shadow-sm);}

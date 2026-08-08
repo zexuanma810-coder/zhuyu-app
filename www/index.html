@@ -269,6 +269,21 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- 通用确认弹窗 -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal" style="padding-bottom:28px">
+    <div class="mhead">
+      <div class="mtitle" id="confirmTitle">确认删除</div>
+      <div class="mclose" onclick="closeModal('confirmModal')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="#1F2421" stroke-width="2" stroke-linecap="round"/></svg></div>
+    </div>
+    <div class="field" id="confirmMsg" style="font-size:14px;color:var(--sub);line-height:1.6;margin-top:4px"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal('confirmModal')">取消</button>
+      <button class="btn-solid" id="confirmOk" style="background:var(--red)">删除</button>
+    </div>
+  </div>
+</div>
+
 <!-- 全屏谱图查看器 -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
   <div class="lightbox-inner" id="lightboxInner" onclick="event.stopPropagation()"></div>

@@ -116,7 +116,7 @@ async function renderScores(){
     return '<div class="scard" onclick="openDetail(' + s.id + ')">' + cover +
       '<div class="card-title">' + esc(s.title) + '</div>' +
       '<div class="card-meta">' + esc(s.instrument) + ' · ' + esc(s.level || '') + '</div>' +
-      '<div class="del" onclick="event.stopPropagation();deleteScore(' + s.id + ')"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg></div>' +
+      '<div class="del" onclick="event.stopPropagation();deleteScore(' + s.id + ', \'' + esc(s.title).replace(/\'/g, "\\'") + '\')"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg></div>' +
       '</div>';
   }).join('');
 }
@@ -164,13 +164,23 @@ async function openDetail(id){
       '<div class="score-view" id="scoreView">' + body + '</div>' +
     '</div>' +
     '<div class="toolbar"><div class="left">' +
-      '<div class="tbtn" id="accBtn" onclick="playScoreTrack(' + s.id + ')" title="播放关联伴奏"><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="rgba(78,124,89,0.15)"/><path d="M15 15h4l6-5v20l-6-5h-4zM28 13c2 3 2 11 0 14" stroke="#4E7C59" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' +
+      '<div class="tbtn" id="accBtn" onclick="toggleScoreTrack(' + s.id + ')" title="播放关联伴奏"><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="rgba(78,124,89,0.15)"/><path d="M16 13l10 7-10 7z" fill="#4E7C59"/></svg></div>' +
       '<div class="tbtn" id="demoBtn" onclick="toggleDemo()" title="试听（合成长音）"><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="rgba(78,124,89,0.15)"/><path d="M14 20h4l3-8 5 16 3-8h3" stroke="#4E7C59" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' +
       '<div class="tbtn" id="metroBtn" onclick="toggleMetro()" title="节拍器"><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="rgba(78,124,89,0.15)"/><path d="M20 12v10M20 12l-3 3M20 12l3 3" stroke="#4E7C59" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' +
-    '</div><button class="start-practice" onclick="toast(\'开始练习（演示）\')">开始练习<svg width="16" height="16" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="#fff"/></svg></button></div>';
+    '</div><button class="start-practice" onclick="toast(\'开始练习（演示）\')">开始练习<svg width="16" height="16" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="#fff"/></svg></button></div>' +
+    '<div class="detail-player">' +
+      '<div class="progress" id="detailProg"><div class="fill" id="detailFill" style="width:0%"></div></div>' +
+      '<div class="timerow"><span id="detailCur">00:00</span><span id="detailTot">00:00</span></div>' +
+    '</div>';
   detail.classList.add('active');
   // 点击谱面进入全屏查看
   detail.querySelector('.score-view').addEventListener('click', () => openLightbox(s));
+  const tracks = await getAll('tracks');
+  const linked = tracks.filter(t => t.scoreId == s.id);
+  const playingThis = linked.length && currentTrackId === linked[0].id && audioEl && !audioEl.paused;
+  updateScoreTrackIcon(s.id, playingThis);
+  bindProgressDrag(document.getElementById('detailProg'));
+  updateProgressUI();
 }
 function closeDetail(){
   detail.classList.remove('active');
@@ -211,7 +221,7 @@ async function renderTracks(){
   const list = await getAll('tracks');
   document.getElementById('trackList').innerHTML = list.length ? list.map(t =>
     '<div class="track-row" onclick="playTrack(' + t.id + ')"><div class="left"><div class="cover ' + pickGrad(t.id) + '"></div><div class="info col gap4"><div class="card-title">' + esc(t.title) + '</div><div class="card-meta">' + esc(t.instrument) + ' · ' + esc(t.tuning || '') + '</div></div></div>' +
-    '<div class="del" onclick="event.stopPropagation();deleteTrack(' + t.id + ')"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="#4E7C59" stroke-width="2.2" stroke-linecap="round"/></svg></div></div>'
+    '<div class="del" onclick="event.stopPropagation();deleteTrack(' + t.id + ', \'' + esc(t.title).replace(/\'/g, "\\'") + '\')"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="#4E7C59" stroke-width="2.2" stroke-linecap="round"/></svg></div></div>'
   ).join('') : '';
   renderAccPlayer(list);
 }
@@ -233,16 +243,32 @@ async function renderAccPlayer(list){
     '<svg id="accPlay" width="56" height="56" viewBox="0 0 56 56" onclick="toggleAccPlay()" style="cursor:pointer"><circle cx="28" cy="28" r="28" fill="#4E7C59"/><rect x="21" y="18" width="4" height="20" rx="1" fill="#fff"/><rect x="31" y="18" width="4" height="20" rx="1" fill="#fff"/></svg>' +
     '<svg width="32" height="32" viewBox="0 0 24 24" onclick="nextTrack()"><path d="M18 6v12M6 6l8 6-8 6V6z" fill="#1F2421"/></svg></div>';
   const prog = document.getElementById('accProg');
-  prog.onclick = e => { if (audioEl && audioEl.duration){ const r = prog.getBoundingClientRect(); audioEl.currentTime = ((e.clientX - r.left) / r.width) * audioEl.duration; } };
+  bindProgressDrag(prog);
   loadTrackIntoPlayer(t);
+  setAccPlayIcon(audioEl && !audioEl.paused);
 }
 function loadTrackIntoPlayer(t){
   if (!audioEl) audioEl = new Audio();
-  if (audioEl._url) URL.revokeObjectURL(audioEl._url);
-  const u = blobURL(t.data); audioEl._url = u; audioEl.src = u; audioEl.loop = false; audioEl.load();
-  audioEl.ontimeupdate = () => { if (audioEl.duration){ const pct = audioEl.currentTime / audioEl.duration * 100; const f = document.getElementById('accFill'); if (f) f.style.width = pct + '%'; const c = document.getElementById('accCur'); if (c) c.textContent = fmt(audioEl.currentTime); } };
-  audioEl.onloadedmetadata = () => { const tot = document.getElementById('accTot'); if (tot) tot.textContent = fmt(audioEl.duration); };
+  const blob = t.audio || t.data;
+  const u = blobURL(blob);
+  if (audioEl._url !== u){
+    if (audioEl._url) URL.revokeObjectURL(audioEl._url);
+    audioEl._url = u; audioEl.src = u; audioEl.loop = false; audioEl.load();
+  }
+  audioEl.ontimeupdate = () => updateProgressUI();
+  audioEl.onloadedmetadata = () => updateProgressUI();
   audioEl.onended = () => setAccPlayIcon(false);
+}
+function updateProgressUI(){
+  if (!audioEl || !audioEl.duration || isNaN(audioEl.duration)) return;
+  const pct = audioEl.currentTime / audioEl.duration * 100;
+  const cur = fmt(audioEl.currentTime), tot = fmt(audioEl.duration);
+  const accFill = document.getElementById('accFill'); if (accFill) accFill.style.width = pct + '%';
+  const accCur = document.getElementById('accCur'); if (accCur) accCur.textContent = cur;
+  const accTot = document.getElementById('accTot'); if (accTot) accTot.textContent = tot;
+  const detailFill = document.getElementById('detailFill'); if (detailFill) detailFill.style.width = pct + '%';
+  const detailCur = document.getElementById('detailCur'); if (detailCur) detailCur.textContent = cur;
+  const detailTot = document.getElementById('detailTot'); if (detailTot) detailTot.textContent = tot;
 }
 function fmt(s){ if (!s || isNaN(s)) return '00:00'; s = Math.floor(s); return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); }
 async function playTrack(id){
@@ -260,9 +286,28 @@ function toggleAccPlay(force){
 function setAccPlayIcon(playing){
   const p = document.getElementById('accPlay'); if (!p) return;
   p.innerHTML = playing
-    ? '<circle cx="28" cy="28" r="28" fill="#4E7C59"/><path d="M23 19l11 9-11 9z" fill="#fff"/>'
-    : '<circle cx="28" cy="28" r="28" fill="#4E7C59"/><rect x="21" y="18" width="4" height="20" rx="1" fill="#fff"/><rect x="31" y="18" width="4" height="20" rx="1" fill="#fff"/>';
+    ? '<circle cx="28" cy="28" r="28" fill="#4E7C59"/><rect x="21" y="18" width="4" height="20" rx="1" fill="#fff"/><rect x="31" y="18" width="4" height="20" rx="1" fill="#fff"/>'
+    : '<circle cx="28" cy="28" r="28" fill="#4E7C59"/><path d="M23 19l11 9-11 9z" fill="#fff"/>';
 }
+
+/* ---------- progress bar drag (shared) ---------- */
+let seekDrag = false, seekProg = null;
+function bindProgressDrag(el){ if (!el) return; el.addEventListener('mousedown', startSeek); el.addEventListener('touchstart', startSeek, {passive:false}); }
+function startSeek(e){ e.preventDefault(); seekDrag = true; seekProg = e.currentTarget; seekProg.classList.add('dragging'); seekTo(e); }
+function seekMove(e){ if (!seekDrag || !seekProg) return; e.preventDefault(); seekTo(e); }
+function seekEnd(){ if (seekProg) seekProg.classList.remove('dragging'); seekDrag = false; seekProg = null; }
+function seekTo(e){
+  if (!audioEl || !audioEl.duration || !isFinite(audioEl.duration)) return;
+  const r = seekProg.getBoundingClientRect();
+  const cx = e.touches ? e.touches[0].clientX : (e.changedTouches ? e.changedTouches[0].clientX : e.clientX);
+  const pct = Math.max(0, Math.min(1, (cx - r.left) / r.width));
+  audioEl.currentTime = pct * audioEl.duration;
+}
+window.addEventListener('mousemove', seekMove);
+window.addEventListener('mouseup', seekEnd);
+window.addEventListener('touchmove', seekMove, {passive:false});
+window.addEventListener('touchend', seekEnd);
+
 async function prevTrack(){ const list = await getAll('tracks'); if (!list.length) return; let i = list.findIndex(t => t.id === currentTrackId); i = (i - 1 + list.length) % list.length; playTrack(list[i].id); }
 async function nextTrack(){ const list = await getAll('tracks'); if (!list.length) return; let i = list.findIndex(t => t.id === currentTrackId); i = (i + 1) % list.length; playTrack(list[i].id); }
 
@@ -350,7 +395,21 @@ async function saveScore(){
   ['sf-title','sf-tuning','sf-composer','sf-note'].forEach(id => document.getElementById(id).value = '');
   closeModal('scoreModal'); toast('已保存到本地'); refreshScores();
 }
-async function deleteScore(id){ await del('scores', id); toast('已删除'); refreshScores(); }
+let pendingDelete = null;
+function confirmDelete(type, id, name){
+  pendingDelete = { type, id };
+  document.getElementById('confirmTitle').textContent = '确认删除' + (type === 'score' ? '谱子' : '伴奏');
+  document.getElementById('confirmMsg').textContent = '确定要删除《' + esc(name) + '》吗？此操作不可恢复。';
+  document.getElementById('confirmOk').onclick = () => { closeModal('confirmModal'); doPendingDelete(); };
+  openModal('confirmModal');
+}
+async function doPendingDelete(){
+  if (!pendingDelete) return;
+  const { type, id } = pendingDelete; pendingDelete = null;
+  if (type === 'score'){ await del('scores', id); toast('已删除'); refreshScores(); }
+  else { await del('tracks', id); if (currentTrackId === id) currentTrackId = null; refreshTracks(); }
+}
+function deleteScore(id, title){ confirmDelete('score', id, title || '该谱子'); }
 
 /* track modal */
 let pendingTrackFile = null;
@@ -379,7 +438,7 @@ async function saveTrack(){
   if (scoreSel) scoreSel.value = '';
   closeModal('trackModal'); toast('伴奏已保存'); refreshTracks();
 }
-async function deleteTrack(id){ await del('tracks', id); if (currentTrackId === id) currentTrackId = null; refreshTracks(); }
+function deleteTrack(id, title){ confirmDelete('track', id, title || '该伴奏'); }
 
 /* filter chips */
 document.getElementById('scoreChips').addEventListener('click', e => {
@@ -402,19 +461,33 @@ async function openAddTrack(){
 }
 
 /* ---------- play linked accompaniment from score detail ---------- */
-async function playScoreTrack(scoreId){
+async function toggleScoreTrack(scoreId){
   const tracks = await getAll('tracks');
   const linked = tracks.filter(t => t.scoreId == scoreId);
   if (!linked.length){ toast('该谱子暂无伴奏，请去「伴奏」页上传'); goTab('acc'); return; }
   const t = linked[0];
+  if (currentTrackId === t.id && audioEl && !audioEl.paused){
+    audioEl.pause();
+    setAccPlayIcon(false);
+    updateScoreTrackIcon(scoreId, false);
+    return;
+  }
   currentTrackId = t.id;
   if (!audioEl) audioEl = new Audio();
   if (audioEl._url) URL.revokeObjectURL(audioEl._url);
   const u = blobURL(t.audio); audioEl._url = u; audioEl.src = u; audioEl.loop = false; audioEl.load();
-  audioEl.onended = () => setAccPlayIcon(false);
+  audioEl.onended = () => { setAccPlayIcon(false); updateScoreTrackIcon(scoreId, false); };
   audioEl.play().catch(() => toast('无法播放该音频'));
   setAccPlayIcon(true);
-  toast('正在后台播放：' + t.title);
+  updateScoreTrackIcon(scoreId, true);
+  toast('正在播放：' + t.title);
+}
+function updateScoreTrackIcon(scoreId, playing){
+  const btn = document.getElementById('accBtn'); if (!btn) return;
+  btn.innerHTML = playing
+    ? '<svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="#4E7C59"/><rect x="15" y="13" width="4" height="14" rx="1" fill="#fff"/><rect x="22" y="13" width="4" height="14" rx="1" fill="#fff"/></svg>'
+    : '<svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="rgba(78,124,89,0.15)"/><path d="M16 13l10 7-10 7z" fill="#4E7C59"/></svg>';
+  btn.classList.toggle('on', playing);
 }
 
 /* ---------- score search ---------- */
