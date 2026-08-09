@@ -57,6 +57,21 @@ const SHEET_SVG = '<svg viewBox="0 0 300 420" xmlns="http://www.w3.org/2000/svg"
   '<g transform="translate(0,270)"><line x1="20" y1="0" x2="280" y2="0" stroke="#E3DECF" stroke-width="1"/><line x1="20" y1="8" x2="280" y2="8" stroke="#E3DECF" stroke-width="1"/><line x1="20" y1="16" x2="280" y2="16" stroke="#E3DECF" stroke-width="1"/><line x1="20" y1="24" x2="280" y2="24" stroke="#E3DECF" stroke-width="1"/><line x1="20" y1="32" x2="280" y2="32" stroke="#E3DECF" stroke-width="1"/><ellipse cx="60" cy="16" rx="5" ry="4" fill="#1F2421"/><ellipse cx="90" cy="8" rx="5" ry="4" fill="#1F2421"/><ellipse cx="120" cy="24" rx="5" ry="4" fill="#1F2421"/><ellipse cx="150" cy="32" rx="5" ry="4" fill="#1F2421"/><ellipse cx="180" cy="16" rx="5" ry="4" fill="#1F2421"/><ellipse cx="210" cy="8" rx="5" ry="4" fill="#1F2421"/><ellipse cx="240" cy="24" rx="5" ry="4" fill="#1F2421"/><line x1="100" y1="0" x2="100" y2="32" stroke="#A6ABA3" stroke-width="1"/><line x1="190" y1="0" x2="190" y2="32" stroke="#A6ABA3" stroke-width="1"/><text x="20" y="52" font-family="Sarasa Gothic SC" font-size="10" fill="#6E766F">江 枫 渔 火 对 愁 眠</text></g>' +
   '<text x="150" y="380" text-anchor="middle" font-family="Sarasa Gothic SC" font-size="11" fill="#A6ABA3">— 简谱预览 · 可缩放与标注 —</text></svg>';
 
+function heartIcon(filled){
+  return filled
+    ? '<svg viewBox="0 0 24 24" fill="none"><path d="M12 21l-1.45-1.32C5.4 14.36 2 11.28 2 7.5 2 4.42 4.42 2 7.5 2c1.74 0 3.41.81 4.5 2.09C13.09 2.81 14.76 2 16.5 2 19.58 2 22 4.42 22 7.5c0 3.78-3.4 6.86-8.55 12.18L12 21z" fill="#BC4B3C"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none"><path d="M12 21l-1.45-1.32C5.4 14.36 2 11.28 2 7.5 2 4.42 4.42 2 7.5 2c1.74 0 3.41.81 4.5 2.09C13.09 2.81 14.76 2 16.5 2 19.58 2 22 4.42 22 7.5c0 3.78-3.4 6.86-8.55 12.18L12 21z" stroke="#BC4B3C" stroke-width="2" fill="none"/></svg>';
+}
+function renderScoreCard(s){
+  const cover = s.cover ? '<div class="cover"><img src="' + blobURL(s.cover) + '" alt=""></div>' : motif(pickGrad(s.id));
+  return '<div class="scard" data-sid="' + s.id + '" onclick="openDetail(' + s.id + ')">' + cover +
+    '<div class="card-title">' + esc(s.title) + '</div>' +
+    '<div class="card-row"><div class="card-meta">' + esc(s.instrument) + ' · ' + esc(s.level || '') + '</div>' +
+    '<div class="fav-btn" onclick="event.stopPropagation();toggleFavorite(' + s.id + ', event)" title="收藏">' + heartIcon(s.favorite) + '</div></div>' +
+    '<div class="del" onclick="event.stopPropagation();deleteScore(' + s.id + ', \'' + esc(s.title).replace(/\'/g, "\\'") + '\')"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg></div>' +
+    '</div>';
+}
+
 /* ---------- state ---------- */
 const state = { scoreFilter: 'all', scoreSearch: '' };
 
@@ -86,6 +101,7 @@ function goTab(name){
   if (name === 'scores') refreshScores();
   if (name === 'acc') refreshTracks();
   if (name === 'profile') renderProfile();
+  if (name === 'favorites') renderFavorites();
 }
 
 /* ---------- scores ---------- */
@@ -111,14 +127,48 @@ async function renderScores(){
       '<div class="et">' + esc(msg) + '</div><div class="es">' + sub + '</div>' + btn + '</div>';
     return;
   }
-  grid.innerHTML = list.map(s => {
-    const cover = s.cover ? '<div class="cover"><img src="' + blobURL(s.cover) + '" alt=""></div>' : motif(pickGrad(s.id));
-    return '<div class="scard" onclick="openDetail(' + s.id + ')">' + cover +
-      '<div class="card-title">' + esc(s.title) + '</div>' +
-      '<div class="card-meta">' + esc(s.instrument) + ' · ' + esc(s.level || '') + '</div>' +
-      '<div class="del" onclick="event.stopPropagation();deleteScore(' + s.id + ', \'' + esc(s.title).replace(/\'/g, "\\'") + '\')"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg></div>' +
-      '</div>';
-  }).join('');
+  grid.innerHTML = list.map(s => renderScoreCard(s)).join('');
+  bindLongPressGrid();
+}
+async function renderFavorites(){
+  const all = await getAll('scores');
+  const favs = all.filter(s => s.favorite);
+  const grid = document.getElementById('favGrid');
+  if (!grid) return;
+  if (!favs.length){
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:40px 12px">' +
+      '<svg viewBox="0 0 24 24" fill="none"><path d="M12 21l-1.45-1.32C5.4 14.36 2 11.28 2 7.5 2 4.42 4.42 2 7.5 2c1.74 0 3.41.81 4.5 2.09C13.09 2.81 14.76 2 16.5 2 19.58 2 22 4.42 22 7.5c0 3.78-3.4 6.86-8.55 12.18L12 21z" stroke="#A6ABA3" stroke-width="2" fill="none"/></svg>' +
+      '<div class="et">还没有收藏谱子</div><div class="es">在谱库中点击爱心图标即可收藏</div>' +
+      '<button class="ebtn" onclick="goTab(\'scores\')">去谱库</button></div>';
+    return;
+  }
+  grid.innerHTML = favs.map(s => renderScoreCard(s)).join('');
+  bindLongPressGrid();
+}
+function bindLongPressGrid(){
+  const grid = document.getElementById('scoreGrid');
+  if (!grid || grid._lpBound) return;
+  grid._lpBound = true;
+  let timer = null, target = null;
+  const start = (e) => {
+    const item = e.target.closest('.scard');
+    if (!item) return;
+    target = item;
+    timer = setTimeout(() => {
+      timer = null;
+      const id = parseInt(item.dataset.sid);
+      openEditScore(id);
+      const stop = (ev) => { if (ev.target.closest('.scard') === item){ ev.stopPropagation(); ev.preventDefault(); item.removeEventListener('click', stop, true); } };
+      item.addEventListener('click', stop, true);
+    }, 600);
+  };
+  const cancel = () => { if (timer){ clearTimeout(timer); timer = null; } target = null; };
+  grid.addEventListener('mousedown', start);
+  grid.addEventListener('touchstart', start, {passive: true});
+  grid.addEventListener('mouseup', cancel);
+  grid.addEventListener('mouseleave', cancel);
+  grid.addEventListener('touchend', cancel);
+  grid.addEventListener('touchmove', cancel);
 }
 async function renderRecent(){
   const all = await getAll('scores');
@@ -135,7 +185,18 @@ async function renderRecent(){
       '<div class="card-meta-sm">' + esc(s.instrument) + ' · ' + esc(s.level || '') + '</div></div>';
   }).join('');
 }
-function refreshScores(){ renderScores(); renderRecent(); renderProfile(); }
+function refreshScores(){ renderScores(); renderRecent(); renderFavorites(); renderProfile(); }
+async function toggleFavorite(id, ev){
+  if (ev) ev.stopPropagation();
+  const s = await get('scores', id);
+  if (!s) return;
+  s.favorite = !s.favorite;
+  await put('scores', s);
+  refreshScores();
+  const favBtn = document.getElementById('detailFav');
+  if (favBtn && favBtn.dataset.sid == id) favBtn.innerHTML = heartIcon(s.favorite);
+  toast(s.favorite ? '已收藏' : '已取消收藏');
+}
 
 /* ---------- detail ---------- */
 const detail = document.getElementById('screen-detail');
@@ -159,9 +220,9 @@ async function openDetail(id){
     '<div class="content">' +
       '<div class="header"><div class="back" onclick="closeDetail()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="#1F2421" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' +
       '<div class="dtitle">' + esc(s.title) + '</div>' +
-      '<div class="fav"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 21l-1.45-1.32C5.4 14.36 2 11.28 2 7.5 2 4.42 4.42 2 7.5 2c1.74 0 3.41.81 4.5 2.09C13.09 2.81 14.76 2 16.5 2 19.58 2 22 4.42 22 7.5c0 3.78-3.4 6.86-8.55 12.18L12 21z" fill="#BC4B3C"/></svg></div></div>' +
+      '<div class="fav" id="detailFav" data-sid="' + s.id + '" onclick="toggleFavorite(' + s.id + ', event)">' + heartIcon(s.favorite) + '</div></div>' +
       '<div class="info-card">' + cover + '<div class="col"><div class="score-title">' + esc(s.title) + '</div><div class="composer">' + esc(s.composer || '民间乐曲') + '</div><div class="tags">' + tags + '</div></div></div>' +
-      '<div class="score-view" id="scoreView">' + body + '</div>' +
+      '<div class="score-view" id="scoreView"><div class="score-body">' + body + '</div>' + rhythmOverlayHTML(s.lineCount || 4) + '</div>' +
     '</div>' +
     '<div class="toolbar"><div class="left">' +
       '<div class="tbtn" id="accBtn" onclick="toggleScoreTrack(' + s.id + ')" title="播放关联伴奏"><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="rgba(78,124,89,0.15)"/><path d="M16 13l10 7-10 7z" fill="#4E7C59"/></svg></div>' +
@@ -179,6 +240,7 @@ async function openDetail(id){
   const linked = tracks.filter(t => t.scoreId == s.id);
   const playingThis = linked.length && currentTrackId === linked[0].id && audioEl && !audioEl.paused;
   updateScoreTrackIcon(s.id, playingThis);
+  setRhythmOverlay(playingThis);
   bindProgressDrag(document.getElementById('detailProg'));
   updateProgressUI();
 }
@@ -206,6 +268,30 @@ function openLightbox(s){
   box.classList.add('active');
 }
 function closeLightbox(){ document.getElementById('lightbox').classList.remove('active'); }
+
+function rhythmOverlayHTML(n){
+  let rows = '';
+  for (let i = 0; i < n; i++) rows += '<div class="rhythm-row"><div class="rhythm-line"></div></div>';
+  return '<div class="rhythm-overlay" id="rhythmOverlay">' + rows + '</div>';
+}
+function setRhythmOverlay(show){
+  const ov = document.getElementById('rhythmOverlay');
+  if (ov) ov.classList.toggle('active', show);
+}
+function updateRhythmCursor(){
+  const ov = document.getElementById('rhythmOverlay');
+  if (!ov || !audioEl || !audioEl.duration || isNaN(audioEl.duration)) return;
+  const lines = ov.querySelectorAll('.rhythm-line');
+  if (!lines.length) return;
+  const dur = audioEl.duration, t = audioEl.currentTime;
+  const secPerRow = dur / lines.length;
+  const idx = Math.min(lines.length - 1, Math.floor(t / secPerRow));
+  const pos = ((t % secPerRow) / secPerRow) * 100;
+  lines.forEach((l, i) => {
+    l.style.display = i === idx ? 'block' : 'none';
+    if (i === idx) l.style.left = pos + '%';
+  });
+}
 
 /* ---------- profile ---------- */
 async function renderProfile(){
@@ -269,6 +355,7 @@ function updateProgressUI(){
   const detailFill = document.getElementById('detailFill'); if (detailFill) detailFill.style.width = pct + '%';
   const detailCur = document.getElementById('detailCur'); if (detailCur) detailCur.textContent = cur;
   const detailTot = document.getElementById('detailTot'); if (detailTot) detailTot.textContent = tot;
+  updateRhythmCursor();
 }
 function fmt(s){ if (!s || isNaN(s)) return '00:00'; s = Math.floor(s); return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); }
 async function playTrack(id){
@@ -347,7 +434,7 @@ function openModal(id){ document.getElementById(id).classList.add('active'); }
 function closeModal(id){ document.getElementById(id).classList.remove('active'); }
 ['scoreModal','trackModal'].forEach(id => {
   const el = document.getElementById(id);
-  el.addEventListener('click', e => { if (e.target === el) closeModal(id); });
+  el.addEventListener('click', e => { if (e.target === el){ if (id === 'scoreModal') closeScoreModal(); else closeModal(id); } });
 });
 
 /* score modal */
@@ -374,26 +461,65 @@ function removeScoreFile(i){ pendingScoreFiles.splice(i, 1); renderScoreFileList
 async function saveScore(){
   const title = document.getElementById('sf-title').value.trim();
   if (!title){ toast('请填写标题'); return; }
+  const editId = parseInt(document.getElementById('sf-id').value) || null;
+  let existing = null;
+  if (editId) existing = await get('scores', editId);
   const files = [];
   for (const pf of pendingScoreFiles){
     const data = await pf.file.arrayBuffer().then(b => new Blob([b], { type: pf.file.type }));
     files.push({ name: pf.file.name, type: pf.file.type, kind: pf.kind, data });
   }
-  const firstImg = files.find(f => f.kind === 'image');
+  const finalFiles = files.length ? files : (existing ? existing.files : []);
+  const firstImg = finalFiles.find(f => f.kind === 'image');
   const rec = {
+    id: editId || undefined,
     title,
     instrument: document.getElementById('sf-inst').value,
     level: document.getElementById('sf-level').value,
     tuning: document.getElementById('sf-tuning').value.trim(),
+    lineCount: parseInt(document.getElementById('sf-lineCount').value) || 4,
     composer: document.getElementById('sf-composer').value.trim(),
     note: document.getElementById('sf-note').value.trim(),
-    cover: firstImg ? firstImg.data : null,
-    files, createdAt: Date.now()
+    cover: firstImg ? firstImg.data : (existing ? existing.cover : null),
+    files: finalFiles,
+    favorite: existing ? !!existing.favorite : false,
+    createdAt: existing ? existing.createdAt : Date.now()
   };
   await put('scores', rec);
-  pendingScoreFiles = []; document.getElementById('sf-filelist').innerHTML = '';
+  closeScoreModal();
+  toast(editId ? '已更新谱子' : '已保存到本地');
+  refreshScores();
+}
+async function openEditScore(id){
+  const s = await get('scores', id);
+  if (!s) return;
+  document.getElementById('scoreModalTitle').textContent = '编辑谱子';
+  document.getElementById('sf-id').value = s.id;
+  document.getElementById('sf-title').value = s.title || '';
+  document.getElementById('sf-inst').value = s.instrument || '笛子';
+  document.getElementById('sf-level').value = s.level || '初级';
+  document.getElementById('sf-tuning').value = s.tuning || '';
+  document.getElementById('sf-lineCount').value = String(s.lineCount || 4);
+  document.getElementById('sf-composer').value = s.composer || '';
+  document.getElementById('sf-note').value = s.note || '';
+  pendingScoreFiles = [];
+  document.getElementById('sf-filelist').innerHTML = (s.files || []).map(f =>
+    '<div class="file-item"><svg class="fi-ic" viewBox="0 0 24 24" fill="none">' +
+    (f.kind === 'pdf' ? '<rect x="4" y="3" width="16" height="18" rx="2" stroke="#BC4B3C" stroke-width="2"/><path d="M8 8h8M8 12h8M8 16h5" stroke="#BC4B3C" stroke-width="2" stroke-linecap="round"/>' : '<rect x="4" y="4" width="16" height="16" rx="2" stroke="#4E7C59" stroke-width="2"/><circle cx="9" cy="9" r="2" fill="#4E7C59"/><path d="M14 20l-3-3 3-3 3 3-3 3z" fill="#4E7C59"/>') +
+    '</svg><div class="fi-name">' + esc(f.name) + '</div></div>'
+  ).join('');
+  openModal('scoreModal');
+}
+function closeScoreModal(){
+  closeModal('scoreModal');
+  document.getElementById('scoreModalTitle').textContent = '添加谱子';
+  document.getElementById('sf-id').value = '';
   ['sf-title','sf-tuning','sf-composer','sf-note'].forEach(id => document.getElementById(id).value = '');
-  closeModal('scoreModal'); toast('已保存到本地'); refreshScores();
+  document.getElementById('sf-lineCount').value = '4';
+  document.getElementById('sf-inst').value = '笛子';
+  document.getElementById('sf-level').value = '初级';
+  pendingScoreFiles = [];
+  document.getElementById('sf-filelist').innerHTML = '';
 }
 let pendingDelete = null;
 function confirmDelete(type, id, name){
@@ -449,7 +575,7 @@ document.getElementById('scoreChips').addEventListener('click', e => {
 });
 
 /* shortcuts used in inline handlers */
-function openAddScore(){ openModal('scoreModal'); }
+function openAddScore(){ closeScoreModal(); openModal('scoreModal'); }
 async function openAddTrack(){
   const scores = await getAll('scores');
   const sel = document.getElementById('tf-score');
@@ -470,17 +596,17 @@ async function toggleScoreTrack(scoreId){
     audioEl.pause();
     setAccPlayIcon(false);
     updateScoreTrackIcon(scoreId, false);
+    setRhythmOverlay(false);
     return;
   }
   currentTrackId = t.id;
   if (!audioEl) audioEl = new Audio();
   if (audioEl._url) URL.revokeObjectURL(audioEl._url);
   const u = blobURL(t.audio); audioEl._url = u; audioEl.src = u; audioEl.loop = false; audioEl.load();
-  audioEl.onended = () => { setAccPlayIcon(false); updateScoreTrackIcon(scoreId, false); };
+  audioEl.onended = () => { setAccPlayIcon(false); updateScoreTrackIcon(scoreId, false); setRhythmOverlay(false); };
+  audioEl.onpause = () => { setAccPlayIcon(false); updateScoreTrackIcon(scoreId, false); setRhythmOverlay(false); };
+  audioEl.onplay = () => { setAccPlayIcon(true); updateScoreTrackIcon(scoreId, true); setRhythmOverlay(true); };
   audioEl.play().catch(() => toast('无法播放该音频'));
-  setAccPlayIcon(true);
-  updateScoreTrackIcon(scoreId, true);
-  toast('正在播放：' + t.title);
 }
 function updateScoreTrackIcon(scoreId, playing){
   const btn = document.getElementById('accBtn'); if (!btn) return;
