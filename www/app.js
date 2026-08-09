@@ -228,11 +228,18 @@ async function openDetail(id){
       '<div class="tbtn" id="accBtn" onclick="toggleScoreTrack(' + s.id + ')" title="播放关联伴奏"><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="rgba(78,124,89,0.15)"/><path d="M16 13l10 7-10 7z" fill="#4E7C59"/></svg></div>' +
       '<div class="tbtn" id="demoBtn" onclick="toggleDemo()" title="试听（合成长音）"><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="rgba(78,124,89,0.15)"/><path d="M14 20h4l3-8 5 16 3-8h3" stroke="#4E7C59" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' +
       '<div class="tbtn" id="metroBtn" onclick="toggleMetro()" title="节拍器"><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="rgba(78,124,89,0.15)"/><path d="M20 12v10M20 12l-3 3M20 12l3 3" stroke="#4E7C59" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' +
+      '<div class="tbtn" id="calibBtn" onclick="startCalib()" title="节拍标定"><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="rgba(78,124,89,0.15)"/><circle cx="20" cy="20" r="9" stroke="#4E7C59" stroke-width="2.2" fill="none"/><circle cx="20" cy="20" r="3" fill="#4E7C59"/></svg></div>' +
     '</div><button class="start-practice" onclick="toast(\'开始练习（演示）\')">开始练习<svg width="16" height="16" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="#fff"/></svg></button></div>' +
     '<div class="detail-player">' +
       '<div class="progress" id="detailProg"><div class="fill" id="detailFill" style="width:0%"></div></div>' +
       '<div class="timerow"><span id="detailCur">00:00</span><span id="detailTot">00:00</span></div>' +
+    '</div>' +
+    '<div class="calib-bar" id="calibBar">' +
+      '<div class="calib-info">节拍标定中 · 每到一个<b>新行开头</b>就点一下「这一行开始」。已记录 <span id="calibCount">0</span> / <span id="calibTotal">' + (s.lineCount || 4) + '</span> 行</div>' +
+      '<button class="calib-tap" id="calibTap" onclick="calibTap()">▶ 这一行开始</button>' +
+      '<div class="calib-actions"><button class="btn-ghost" onclick="cancelCalib()">取消</button><button class="btn-solid" onclick="finishCalib()">完成并保存</button></div>' +
     '</div>';
+  currentDetailScore = s;
   detail.classList.add('active');
   // 点击谱面进入全屏查看
   detail.querySelector('.score-view').addEventListener('click', () => openLightbox(s));
@@ -246,6 +253,8 @@ async function openDetail(id){
 }
 function closeDetail(){
   detail.classList.remove('active');
+  exitCalib();
+  currentDetailScore = null;
   stopDemo(); stopMetro();
 }
 
@@ -269,6 +278,51 @@ function openLightbox(s){
 }
 function closeLightbox(){ document.getElementById('lightbox').classList.remove('active'); }
 
+/* ---------- 节拍标定（逐行打点，真正贴合实际音频） ---------- */
+let calibMode = false, calibTimes = [], calibScoreId = null;
+async function startCalib(){
+  const s = currentDetailScore; if (!s) return;
+  const tracks = await getAll('tracks');
+  const linked = tracks.filter(t => t.scoreId == s.id);
+  if (!linked.length){ toast('请先在「伴奏」页上传并关联本谱子的伴奏，才能标定节拍'); goTab('acc'); return; }
+  calibScoreId = s.id; calibTimes = []; calibMode = true;
+  const bar = document.getElementById('calibBar');
+  if (bar){
+    bar.style.display = 'flex';
+    document.getElementById('calibTotal').textContent = s.lineCount || 4;
+    document.getElementById('calibCount').textContent = '0';
+  }
+  if (!audioEl || audioEl.paused) await toggleScoreTrack(s.id);
+  if (audioEl){ audioEl.currentTime = 0; audioEl.play().catch(() => {}); }
+  toast('播放已开始：每到新一行开头，点「这一行开始」');
+}
+function calibTap(){
+  if (!calibMode || !audioEl) return;
+  calibTimes.push(Number(audioEl.currentTime.toFixed(2)));
+  const c = document.getElementById('calibCount'); if (c) c.textContent = calibTimes.length;
+  const btn = document.getElementById('calibTap');
+  if (btn){ btn.classList.add('pulse'); setTimeout(() => btn.classList.remove('pulse'), 150); }
+}
+async function finishCalib(){
+  if (!calibMode) return;
+  if (calibTimes.length < 2){ toast('至少标定前两行才能保存'); return; }
+  const rec = await get('scores', calibScoreId);
+  if (!rec){ toast('谱子不存在'); exitCalib(); return; }
+  rec.lineTimes = calibTimes.slice();
+  await put('scores', rec);
+  currentDetailScore = rec;
+  toast('节拍已标定并保存到本机');
+  exitCalib();
+}
+function cancelCalib(){ exitCalib(); }
+function exitCalib(){
+  const wasCalib = calibMode;
+  calibMode = false;
+  const bar = document.getElementById('calibBar'); if (bar) bar.style.display = 'none';
+  if (wasCalib && audioEl) audioEl.pause();
+  setRhythmOverlay(false);
+}
+
 function rhythmOverlayHTML(n){
   let rows = '';
   for (let i = 0; i < n; i++) rows += '<div class="rhythm-row"><div class="rhythm-line"></div></div>';
@@ -276,17 +330,53 @@ function rhythmOverlayHTML(n){
 }
 function setRhythmOverlay(show){
   const ov = document.getElementById('rhythmOverlay');
-  if (ov) ov.classList.toggle('active', show);
+  if (ov) ov.classList.toggle('active', show && !calibMode);
 }
 function updateRhythmCursor(){
   const ov = document.getElementById('rhythmOverlay');
   if (!ov || !audioEl || !audioEl.duration || isNaN(audioEl.duration)) return;
   const lines = ov.querySelectorAll('.rhythm-line');
   if (!lines.length) return;
-  const dur = audioEl.duration, t = audioEl.currentTime;
-  const secPerRow = dur / lines.length;
-  const idx = Math.min(lines.length - 1, Math.floor(t / secPerRow));
-  const pos = ((t % secPerRow) / secPerRow) * 100;
+  const s = currentDetailScore;
+  const t = audioEl.currentTime;
+  const n = lines.length;
+  let idx = 0, pos = 0;
+
+  // 1) 优先：逐行打点标定的真实时间戳（真正贴合音频节奏，含渐慢/加速）
+  const times = s && Array.isArray(s.lineTimes) ? s.lineTimes : null;
+  if (times && times.length >= 2){
+    const ts = times.slice();
+    while (ts.length < n){                         // 标定不足 N 行时按最后一拍间隔外推
+      const prev = ts[ts.length - 1], before = ts[ts.length - 2];
+      const avg = (prev - before) || (audioEl.duration / n);
+      ts.push(prev + avg);
+    }
+    while (idx < n - 1 && t >= ts[idx + 1]) idx++;
+    const start = ts[idx], lineEnd = ts[idx + 1] || audioEl.duration;
+    pos = lineEnd > start ? (t - start) / (lineEnd - start) * 100 : 0;
+  }
+  // 2) 回退：BPM + 每行拍数（匀速近似，尊重不同行拍数不同）
+  else if (s && s.bpm){
+    const bpm = s.bpm, lead = s.leadIn || 0;
+    const bpl = (Array.isArray(s.beatsPerLine) && s.beatsPerLine.length) ? s.beatsPerLine : null;
+    const beat = Math.max(0, t - lead) * bpm / 60;
+    let acc = 0;
+    for (let i = 0; i < n; i++){
+      const cb = bpl ? (bpl[i] || 4) : 4;
+      if (beat >= acc && beat < acc + cb){ idx = i; break; }
+      acc += cb;
+      if (i === n - 1) idx = n - 1;
+    }
+    const cb = bpl ? (bpl[idx] || 4) : 4;
+    pos = cb ? (Math.max(0, beat - acc) / cb) * 100 : 0;
+  }
+  // 3) 兜底：整首时长 ÷ 行数（旧逻辑，未做任何节拍设置时）
+  else {
+    const secPerRow = audioEl.duration / n;
+    idx = Math.min(n - 1, Math.floor(t / secPerRow));
+    pos = ((t % secPerRow) / secPerRow) * 100;
+  }
+  pos = Math.max(0, Math.min(100, pos));
   lines.forEach((l, i) => {
     l.style.display = i === idx ? 'block' : 'none';
     if (i === idx) l.style.left = pos + '%';
@@ -302,7 +392,7 @@ async function renderProfile(){
 }
 
 /* ---------- accompaniment (real audio) ---------- */
-let audioEl = null, currentTrackId = null;
+let audioEl = null, currentTrackId = null, currentDetailScore = null;
 async function renderTracks(){
   const list = await getAll('tracks');
   document.getElementById('trackList').innerHTML = list.length ? list.map(t =>
@@ -458,6 +548,11 @@ function renderScoreFileList(){
   ).join('');
 }
 function removeScoreFile(i){ pendingScoreFiles.splice(i, 1); renderScoreFileList(); }
+function parseBeats(v){
+  if (!v || !v.trim()) return null;
+  const arr = v.split(',').map(x => parseInt(x.trim())).filter(n => !isNaN(n) && n > 0);
+  return arr.length ? arr : null;
+}
 async function saveScore(){
   const title = document.getElementById('sf-title').value.trim();
   if (!title){ toast('请填写标题'); return; }
@@ -478,6 +573,10 @@ async function saveScore(){
     level: document.getElementById('sf-level').value,
     tuning: document.getElementById('sf-tuning').value.trim(),
     lineCount: parseInt(document.getElementById('sf-lineCount').value) || 4,
+    bpm: (document.getElementById('sf-bpm').value ? parseInt(document.getElementById('sf-bpm').value) : null),
+    leadIn: (document.getElementById('sf-leadIn').value ? parseFloat(document.getElementById('sf-leadIn').value) : 0),
+    beatsPerLine: parseBeats(document.getElementById('sf-beats').value),
+    lineTimes: existing ? (existing.lineTimes || null) : null,
     composer: document.getElementById('sf-composer').value.trim(),
     note: document.getElementById('sf-note').value.trim(),
     cover: firstImg ? firstImg.data : (existing ? existing.cover : null),
@@ -500,6 +599,9 @@ async function openEditScore(id){
   document.getElementById('sf-level').value = s.level || '初级';
   document.getElementById('sf-tuning').value = s.tuning || '';
   document.getElementById('sf-lineCount').value = String(s.lineCount || 4);
+  document.getElementById('sf-bpm').value = s.bpm || '';
+  document.getElementById('sf-leadIn').value = (s.leadIn != null ? s.leadIn : '');
+  document.getElementById('sf-beats').value = (s.beatsPerLine && s.beatsPerLine.length) ? s.beatsPerLine.join(',') : '';
   document.getElementById('sf-composer').value = s.composer || '';
   document.getElementById('sf-note').value = s.note || '';
   pendingScoreFiles = [];
@@ -516,6 +618,9 @@ function closeScoreModal(){
   document.getElementById('sf-id').value = '';
   ['sf-title','sf-tuning','sf-composer','sf-note'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('sf-lineCount').value = '4';
+  document.getElementById('sf-bpm').value = '';
+  document.getElementById('sf-leadIn').value = '';
+  document.getElementById('sf-beats').value = '';
   document.getElementById('sf-inst').value = '笛子';
   document.getElementById('sf-level').value = '初级';
   pendingScoreFiles = [];

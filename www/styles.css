@@ -226,6 +226,14 @@ body{
 .rhythm-row{flex:1;position:relative;border-bottom:1px dashed rgba(188,75,60,0.12);}
 .rhythm-row:last-child{border-bottom:none;}
 .rhythm-line{position:absolute;top:0;bottom:0;width:2px;background:rgba(188,75,60,0.9);box-shadow:0 0 5px rgba(188,75,60,0.5);left:0;display:none;border-radius:1px;}
+.calib-bar{display:none;flex-direction:column;gap:10px;background:#4E7C59;color:#fff;border-radius:16px;padding:14px 16px;margin:10px 0;box-shadow:0 4px 14px rgba(31,36,33,0.18);}
+.calib-info{font-size:13px;line-height:1.5;opacity:.96;}
+.calib-info b{color:#E6EEDF;}
+.calib-tap{appearance:none;border:none;border-radius:12px;background:#fff;color:#4E7C59;font-size:17px;font-weight:700;padding:14px;cursor:pointer;transition:transform .12s;}
+.calib-tap.pulse{transform:scale(.95);}
+.calib-actions{display:flex;gap:10px;}
+.calib-actions .btn-ghost{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.5);}
+.calib-actions .btn-solid{background:#fff;color:#4E7C59;}
 .pdf-card{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--border);border-radius:12px;margin-bottom:12px;}
 .pdf-card .pdf-ic{width:36px;height:36px;flex-shrink:0;}
 .pdf-card .pdf-name{font-size:13px;font-weight:700;color:var(--dark);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}

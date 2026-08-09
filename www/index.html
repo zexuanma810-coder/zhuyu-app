@@ -240,6 +240,12 @@
       </div>
       <div class="field"><label>作曲 / 来源</label><input id="sf-composer" placeholder="如：民间乐曲" /></div>
     </div>
+    <div class="field-row">
+      <div class="field"><label>速度 BPM</label><input id="sf-bpm" type="number" min="20" max="240" placeholder="如：72" /></div>
+      <div class="field"><label>引子(秒)</label><input id="sf-leadIn" type="number" min="0" max="60" placeholder="0" /></div>
+    </div>
+    <div class="field"><label>每行拍数（逗号分隔，留空=每行4拍）</label><input id="sf-beats" placeholder="如：8,8,8,4" /></div>
+    <div class="hint-line">红标线优先采用「谱子详情页」里的节拍标定；未标定时用此处 BPM 估算每行进度。</div>
     <div class="field"><label>备注</label><textarea id="sf-note" placeholder="指法、难点提示等"></textarea></div>
     <div class="field">
       <label>谱子文件（图片 / PDF，可多张）</label>
