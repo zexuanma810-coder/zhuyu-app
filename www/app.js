@@ -752,9 +752,54 @@ if (scoreSearchInput){
   scoreSearchInput.addEventListener('keydown', e => { if (e.key === 'Enter') scoreSearchInput.blur(); });
 }
 
+/* ---------- 系统返回键：逐级返回（像正常 App 一样） ---------- */
+function isActive(id){ const el = document.getElementById(id); return !!(el && el.classList.contains('active')); }
+
+function handleHardwareBack(){
+  // 1) 节拍标定进行中 → 先取消标定（回到详情页，再按一次才关详情）
+  if (calibMode){ cancelCalib(); return; }
+  // 2) 确认删除弹窗
+  if (isActive('confirmModal')){ closeModal('confirmModal'); return; }
+  // 3) 谱子编辑/添加弹窗
+  if (isActive('scoreModal')){ closeScoreModal(); return; }
+  // 4) 伴奏添加弹窗
+  if (isActive('trackModal')){ closeModal('trackModal'); return; }
+  // 5) 全屏看谱图
+  if (isActive('lightbox')){ closeLightbox(); return; }
+  // 6) 谱子详情页（"打开了个谱子，就关掉谱子"）
+  if (detail.classList.contains('active')){ closeDetail(); return; }
+  // 7) 不在首页 → 回到首页（"打开页面，就回到页面"）
+  const cur = document.querySelector('.screen.active');
+  if (cur && cur.id !== 'screen-home'){ goTab('home'); return; }
+  // 8) 已在首页 → 真正退出应用
+  const Cap = window.Capacitor;
+  if (Cap && Cap.Plugins && Cap.Plugins.App && typeof Cap.Plugins.App.exitApp === 'function'){
+    Cap.Plugins.App.exitApp();
+  }
+}
+
+function registerBackHandler(){
+  // 手机：拦截 Android 系统返回键，由上面的栈逐级返回
+  const Cap = window.Capacitor;
+  if (Cap && Cap.Plugins && Cap.Plugins.App && typeof Cap.Plugins.App.addListener === 'function'){
+    Cap.Plugins.App.addListener('backButton', handleHardwareBack);
+  }
+  // 桌面预览/调试：Esc 键同样逐级返回（输入框聚焦时仅收起键盘，留在当前页）
+  window.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const a = document.activeElement;
+    if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT')){
+      a.blur(); return;
+    }
+    e.preventDefault();
+    handleHardwareBack();
+  });
+}
+
 /* ---------- init ---------- */
 window.addEventListener('DOMContentLoaded', () => {
   refreshScores(); renderTracks(); goTab('home');
+  registerBackHandler();
 });
 if ('serviceWorker' in navigator){
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });

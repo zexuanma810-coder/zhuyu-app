@@ -1,6 +1,6 @@
 {
   "name": "zhuyu-app",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "竹语 - 笛箫练习 App（Capacitor 安卓原生封装）",
   "private": true,
   "scripts": {
@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@capacitor/android": "^6.1.2",
+    "@capacitor/app": "^6.0.0",
     "@capacitor/core": "^6.1.2"
   },
   "devDependencies": {
