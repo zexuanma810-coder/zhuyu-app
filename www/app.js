@@ -554,41 +554,78 @@ function parseBeats(v){
   const arr = v.split(',').map(x => parseInt(x.trim())).filter(n => !isNaN(n) && n > 0);
   return arr.length ? arr : null;
 }
+function compressImage(file, maxSide = 1920, quality = 0.85){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('图片读取失败')); };
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if (w > h && w > maxSide){ h = Math.round(h * maxSide / w); w = maxSide; }
+      else if (h > maxSide){ w = Math.round(w * maxSide / h); h = maxSide; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else reject(new Error('图片压缩失败'));
+      }, 'image/jpeg', quality);
+    };
+    img.src = url;
+  });
+}
 async function saveScore(){
-  const title = document.getElementById('sf-title').value.trim();
-  if (!title){ toast('请填写标题'); return; }
-  const editId = parseInt(document.getElementById('sf-id').value) || null;
-  let existing = null;
-  if (editId) existing = await get('scores', editId);
-  const files = [];
-  for (const pf of pendingScoreFiles){
-    const data = await pf.file.arrayBuffer().then(b => new Blob([b], { type: pf.file.type }));
-    files.push({ name: pf.file.name, type: pf.file.type, kind: pf.kind, data });
+  try {
+    const title = document.getElementById('sf-title').value.trim();
+    if (!title){ toast('请填写标题'); return; }
+    const editId = parseInt(document.getElementById('sf-id').value) || null;
+    let existing = null;
+    if (editId) existing = await get('scores', editId);
+    const files = [];
+    for (const pf of pendingScoreFiles){
+      let data;
+      if (pf.kind === 'image'){
+        try { data = await compressImage(pf.file); }
+        catch (e) {
+          console.warn('图片压缩失败，改用原图', e);
+          data = await pf.file.arrayBuffer().then(b => new Blob([b], { type: pf.file.type }));
+        }
+      } else {
+        data = await pf.file.arrayBuffer().then(b => new Blob([b], { type: pf.file.type }));
+      }
+      files.push({ name: pf.file.name, type: pf.kind === 'image' ? 'image/jpeg' : pf.file.type, kind: pf.kind, data });
+    }
+    const finalFiles = files.length ? files : (existing ? existing.files : []);
+    const firstImg = finalFiles.find(f => f.kind === 'image');
+    const rec = {
+      id: editId || undefined,
+      title,
+      instrument: document.getElementById('sf-inst').value,
+      level: document.getElementById('sf-level').value,
+      tuning: document.getElementById('sf-tuning').value.trim(),
+      lineCount: parseInt(document.getElementById('sf-lineCount').value) || 4,
+      bpm: (document.getElementById('sf-bpm').value ? parseInt(document.getElementById('sf-bpm').value) : null),
+      leadIn: (document.getElementById('sf-leadIn').value ? parseFloat(document.getElementById('sf-leadIn').value) : 0),
+      beatsPerLine: parseBeats(document.getElementById('sf-beats').value),
+      lineTimes: existing ? (existing.lineTimes || null) : null,
+      composer: document.getElementById('sf-composer').value.trim(),
+      note: document.getElementById('sf-note').value.trim(),
+      cover: firstImg ? firstImg.data : (existing ? existing.cover : null),
+      files: finalFiles,
+      favorite: existing ? !!existing.favorite : false,
+      createdAt: existing ? existing.createdAt : Date.now()
+    };
+    await put('scores', rec);
+    closeScoreModal();
+    toast(editId ? '已更新谱子' : '已保存到本地');
+    refreshScores();
+  } catch (err) {
+    console.error('保存谱子失败', err);
+    toast('保存失败：' + (err && err.message ? err.message : '请检查图片是否过大或刷新后再试'));
   }
-  const finalFiles = files.length ? files : (existing ? existing.files : []);
-  const firstImg = finalFiles.find(f => f.kind === 'image');
-  const rec = {
-    id: editId || undefined,
-    title,
-    instrument: document.getElementById('sf-inst').value,
-    level: document.getElementById('sf-level').value,
-    tuning: document.getElementById('sf-tuning').value.trim(),
-    lineCount: parseInt(document.getElementById('sf-lineCount').value) || 4,
-    bpm: (document.getElementById('sf-bpm').value ? parseInt(document.getElementById('sf-bpm').value) : null),
-    leadIn: (document.getElementById('sf-leadIn').value ? parseFloat(document.getElementById('sf-leadIn').value) : 0),
-    beatsPerLine: parseBeats(document.getElementById('sf-beats').value),
-    lineTimes: existing ? (existing.lineTimes || null) : null,
-    composer: document.getElementById('sf-composer').value.trim(),
-    note: document.getElementById('sf-note').value.trim(),
-    cover: firstImg ? firstImg.data : (existing ? existing.cover : null),
-    files: finalFiles,
-    favorite: existing ? !!existing.favorite : false,
-    createdAt: existing ? existing.createdAt : Date.now()
-  };
-  await put('scores', rec);
-  closeScoreModal();
-  toast(editId ? '已更新谱子' : '已保存到本地');
-  refreshScores();
 }
 async function openEditScore(id){
   const s = await get('scores', id);
