@@ -25,6 +25,7 @@ function getAll(name){
   }));
 }
 function get(name, id){
+  if (id == null) return Promise.resolve(undefined);
   return store(name, 'readonly').then(s => new Promise((res, rej) => {
     const r = s.get(id); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
   }));
