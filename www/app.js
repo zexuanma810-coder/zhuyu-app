@@ -601,7 +601,6 @@ async function saveScore(){
     const finalFiles = files.length ? files : (existing ? existing.files : []);
     const firstImg = finalFiles.find(f => f.kind === 'image');
     const rec = {
-      id: editId || undefined,
       title,
       instrument: document.getElementById('sf-inst').value,
       level: document.getElementById('sf-level').value,
@@ -618,6 +617,7 @@ async function saveScore(){
       favorite: existing ? !!existing.favorite : false,
       createdAt: existing ? existing.createdAt : Date.now()
     };
+    if (editId) rec.id = editId; else delete rec.id;   // 新增时彻底移除 id 占位，避免 undefined 被部分 WebView 当作非法主键
     await put('scores', rec);
     closeScoreModal();
     toast(editId ? '已更新谱子' : '已保存到本地');
